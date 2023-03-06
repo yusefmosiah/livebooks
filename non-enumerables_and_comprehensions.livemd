@@ -17,7 +17,7 @@ Today, I'll remind you of
 
 and
 
-1. **What for comprehensions do.**
+2. **What for comprehensions do.**
 
 ## Tuples
 
