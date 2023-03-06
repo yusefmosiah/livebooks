@@ -1,0 +1,633 @@
+# Non-Enumerables & Comprehensions
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.8.0", override: true},
+  {:ecto_ulid, "~> 0.2.0"}
+])
+```
+
+## Non-Enumerables
+
+On Friday, Marko brilliantly explained how the Enum module and Enumerable Protocol works.
+
+Today, I'll remind you of
+
+1. **How to work with non-enumerable collections of data.**
+
+and
+
+1. **What for comprehensions do.**
+
+## Tuples
+
+```elixir
+#! 
+
+# Enum.map({1, 2, 3}, fn element -> element * 2 end)
+```
+
+```elixir
+[:ok, 42] = Tuple.to_list({:ok, 42})
+```
+
+```elixir
+{:ok, 42} = List.to_tuple([:ok, 42])
+```
+
+```elixir
+{1, 2, 3}
+|> Tuple.to_list()
+|> Enum.map(fn element -> element * 2 end)
+|> List.to_tuple()
+```
+
+## Integers
+
+```elixir
+#!
+
+# Enum.map(123, fn element -> element * 2 end)
+```
+
+```elixir
+[1, 2, 3] = Integer.digits(123)
+```
+
+```elixir
+123 = Integer.undigits([1, 2, 3])
+```
+
+```elixir
+123
+|> Integer.digits()
+|> Enum.map(fn element -> element * 2 end)
+|> Integer.undigits()
+```
+
+## Problem: Counting digits
+
+```elixir
+factorial = fn int ->
+  Enum.reduce(1..int, 1, fn n, acc ->
+    n * acc
+  end)
+end
+
+Enum.with_index(1..20, fn int, index -> {"factorial of #{index + 1}", factorial.(int)} end)
+```
+
+### Math trivia
+
+**TRUE or FALSE**
+
+Factorial of 42 has greater than 42 digits.
+
+```elixir
+factorial.(42)
+# |> length()
+|> Integer.digits()
+|> length()
+```
+
+## Strings
+
+## convert "abc" to "cde"
+
+```elixir
+#!
+
+"abc"
+# |> Enum.map(fn element -> element + 2 end)
+```
+
+```elixir
+'abc' = to_charlist("abc")
+```
+
+```elixir
+"abc" = to_string('abc')
+```
+
+```elixir
+"abc"
+|> to_charlist()
+|> Enum.map(fn element -> element + 2 end)
+|> to_string()
+```
+
+```elixir
+["a", "b", "c"] = String.graphemes("abc")
+```
+
+```elixir
+"abc" = Enum.join(["a", "b", "c"])
+```
+
+```elixir
+["a", "b", "c"] = String.codepoints("abc")
+```
+
+## Remove duplicates
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+"hello" -> "helo" # duplicate 'l'
+"helLo" -> "helLo" # case sensitive
+"First month free, then $19.99 per month" -> "First monhfe,$19.p" # non-local
+```
+
+```elixir
+remove_duplicates = fn string ->
+  string
+  |> String.graphemes()
+  |> Enum.uniq()
+  |> Enum.join()
+end
+
+helo = remove_duplicates.("hello")
+```
+
+```elixir
+fre = remove_duplicates.("First month free, then $19.99 per month")
+```
+
+## Comprehensions
+
+Comprehensions have 3 parts
+
+1. generators
+2. filters
+3. body
+
+## Generators
+
+for lhs <- rhs
+
+I read this as "for left hand side generated from right hand side"
+
+```elixir
+ranks = [:Ace, :King, :Queen, :Jack, 10, 9, 8, 7, 6, 5, 4, 3, 2]
+suits = [:spades, :hearts, :diamonds, :clubs]
+
+deck_of_cards =
+  for suit <- suits, rank <- ranks do
+    {rank, "of", suit}
+  end
+
+shuffled = deck_of_cards |> Enum.shuffle()
+```
+
+```elixir
+Enum.random(13..100)
+Ecto.ULID.generate()
+```
+
+```elixir
+# Enum
+user_ages = 1..100_000 |> Enum.map(fn _ -> Enum.random(13..100) end)
+random_ids = 1..100_000 |> Enum.map(fn _ -> Ecto.ULID.generate() end)
+
+# # for
+# user_ages = for _ <- 1..100_000, do: Enum.random(13..100)
+# random_ids = for _ <- 1..100_000, do: Ecto.ULID.generate()
+```
+
+## Filters
+
+I read the comma separating the generator and filter as "where"
+
+"for {rank, "of", suit} = card generated from deck_of_cards, where rank greater or equal to 6, do: card"
+
+```elixir
+short_deck =
+  for {rank, "of", suit} = card <- deck_of_cards, rank >= 6 do
+    card
+  end
+```
+
+## for: nested data structures
+
+## chunky numbers
+
+Filter this list of tuples to contain only tuples with triples in their inner list, excluding [0, 0, 0] triples.
+
+```elixir
+chunked_digits_with_index =
+  factorial.(1000)
+  |> Integer.digits()
+  |> Enum.chunk_every(3, 3, :discard)
+  |> Enum.with_index()
+
+# elements = chunked_digits_with_index |> length
+```
+
+```elixir
+forc =
+  for {[digit1, digit2, digit3], index} <- chunked_digits_with_index,
+      digit1 == digit2,
+      digit2 == digit3,
+      digit1 != 0 do
+    {"triple #{digit1}", digit1, digit2, digit3, index}
+  end
+```
+
+```elixir
+enum =
+  Enum.filter(chunked_digits_with_index, fn
+    {[digit1, digit2, digit3], _index} ->
+      digit1 == digit2 and digit2 == digit3 and digit1 != 0
+  end)
+  |> Enum.map(fn
+    {[digit1, digit2, digit3], index} ->
+      {"triple #{digit1}", digit1, digit2, digit3, index}
+  end)
+```
+
+## for: not just syntactic sugar
+
+Example c/o [Mitchell Hanberg](https://www.mitchellhanberg.com/the-comprehensive-guide-to-elixirs-for-comprehension/)
+
+## same behavior
+
+```elixir
+friends = [
+  %{first_name: "Joe", last_name: "Swanson"},
+  %{first_name: "Greg", last_name: "Mefford"},
+  %{first_name: "Erik", last_name: "Plostins"}
+]
+
+for %{last_name: last_name} <- friends do
+  last_name
+end
+
+Enum.map(friends, fn %{last_name: last_name} -> last_name end)
+```
+
+## different behavior
+
+```elixir
+friends = [
+  %{first_name: "Derek", age: 92},
+  %{name: "Sarah", date_of_birth: ~D[1990-02-16]},
+  %{name: "Joe", age: 29}
+]
+
+for %{name: name} <- friends do
+  name
+end
+
+# Enum.map(friends, fn %{name: name} -> name end)
+```
+
+Notice how the generator filters out non-matching lhs values.
+
+##### Enum.map MUST ALWAYS RETURN THE SAME NUMBER OF ELEMENTS AS ITS INPUT.
+
+##### for comprehensions NEED NOT DO SO.
+
+## for comprehension options
+
+* into: like Enum.into() — return a type other than list. e.g. string, map
+* uniq: like Enum.uniq() — remove duplicates
+* reduce: like Enum.reduce() — reduce!
+
+## into:
+
+```elixir
+numbers = [1, 2, 3, 4, 5]
+letters = ["a", "b", "c", "d", "e"]
+
+for number <- numbers,
+    letter <- letters,
+    into: Map.new() do
+  # {key, value}
+  {letter, number}
+end
+```
+
+```elixir
+employees = [
+  %{
+    name: "Eric",
+    status: :active,
+    hobbies: [%{name: "Text Adventures", type: :gaming}, %{name: "Chickens", type: :animals}]
+  },
+  %{
+    name: "Mitch",
+    status: :former,
+    hobbies: [%{name: "Woodworking", type: :making}, %{name: "Homebrewing", type: :making}]
+  },
+  %{
+    name: "Greg",
+    status: :active,
+    hobbies: [
+      %{name: "Dungeons & Dragons", type: :gaming},
+      %{name: "Woodworking", type: :making}
+    ]
+  }
+]
+
+base_map = %{
+  "Mitch" => %{
+    name: "Reading",
+    type: :learning
+  },
+  "Greg" => %{
+    name: "Traveling",
+    type: :expensive
+  }
+}
+
+for employee <- employees,
+    hobby <- employee.hobbies,
+    employee.status == :active,
+    hobby.type == :gaming,
+    into: base_map do
+  {employee.name, hobby}
+end
+```
+
+## uniq:
+
+```elixir
+employees = [
+  %{
+    name: "Eric",
+    status: :active,
+    hobbies: [%{name: "Wordle", type: :gaming}, %{name: "Dungeons & Dragons", type: :animals}]
+  },
+  %{
+    name: "Mitch",
+    status: :former,
+    hobbies: [%{name: "Woodworking", type: :making}, %{name: "Homebrewing", type: :making}]
+  },
+  %{
+    name: "Greg",
+    status: :active,
+    hobbies: [
+      %{name: "Dungeons & Dragons", type: :gaming},
+      %{name: "Woodworking", type: :making}
+    ]
+  }
+]
+
+for employee <- employees, hobby <- employee.hobbies, uniq: true do
+  hobby.name
+end
+```
+
+## reduce:
+
+```elixir
+enum_factorial = fn int ->
+  Enum.reduce(1..int, 1, fn n, acc ->
+    n * acc
+  end)
+end
+
+enum_factorial.(42)
+```
+
+```elixir
+for_factorial = fn int ->
+  for n <- 1..int, reduce: 1 do
+    acc -> n * acc
+  end
+end
+
+for_factorial.(42)
+```
+
+## Performance implications
+
+## Bonus 0: bitstrings
+
+```elixir
+bitstring = <<1, "I", 5, "kinda", 4, "like", 9, "bitstring", 14, "comprehensions", 1, "!">>
+
+# <<1, 73, 6, 114, 101, 97, 108, 108, 121, 4, 108, 111, 118, 101, 4, 108, 105,
+#  115, 116, 14, 99, 111, 109, 112, 114, 101, 104, 101, 110, 115, 105, 111, 110,
+#  115, 1, 33>>
+
+for <<message_length::integer, message::binary-size(message_length) <- bitstring>>, into: "" do
+  " #{message}"
+end
+```
+
+## Bonus Problem 1: StringTheory revisited
+
+```elixir
+defmodule StringTheory do
+  def remove_duplicates_enum(string) do
+    string
+    |> String.graphemes()
+    |> Enum.uniq()
+    |> Enum.join()
+  end
+
+  def remove_duplicates_for(string) do
+    for grapheme <- String.graphemes(string), uniq: true, into: "", do: grapheme
+  end
+end
+```
+
+```elixir
+random_ids
+# |> length()
+```
+
+```elixir
+sorted_enum =
+  random_ids
+  |> Enum.map(fn id ->
+    uniqued_id = StringTheory.remove_duplicates_enum(id)
+    {uniqued_id |> String.graphemes() |> length, id, uniqued_id}
+  end)
+  |> Enum.sort_by(fn {char_count, _, _} -> char_count end)
+```
+
+```elixir
+sorted_for =
+  for id <- random_ids do
+    uniqued_id = StringTheory.remove_duplicates_for(id)
+    {uniqued_id |> String.graphemes() |> length, id, uniqued_id}
+  end
+  |> Enum.sort_by(fn {char_count, _, _} -> char_count end)
+```
+
+## Bonus Problem 2: Computing averages
+
+Given a list of students, with each student having a name, class, subject, and score, compute the average score for each class.
+
+```elixir
+defmodule Student do
+  defstruct name: nil, class: nil, subject: nil, score: nil
+end
+```
+
+```elixir
+names = ~w(Ethan
+    Olivia
+    Jacob
+    Ava
+    Lucas
+    Emma
+    Logan
+    Sophia
+    Liam
+    Mia
+    Mason
+    Charlotte
+    Noah
+    Amelia
+    Aiden
+    Harper
+    Jackson
+    Abigail
+    Caden
+    Emily
+    Grayson
+    Elizabeth
+    Elijah
+    Madison
+    Landon
+    Avery
+    Carter
+    Ella
+    Alexander
+    Scarlett
+    Levi
+    Chloe
+    Daniel
+    Victoria
+    William
+    Grace
+    Michael
+    Zoey
+    Benjamin
+    Natalie
+    Samuel
+    Lily
+    Matthew
+    Addison
+    Owen
+    Aubrey
+    Henry
+    Savannah
+    Sebastian
+    Aria
+    Isaac
+    Isabella
+    Wyatt
+    Leah
+    Joseph
+    Riley
+    David
+    Brooklyn
+    Gabriel
+    Samantha
+    Anthony
+    Alexa
+    Andrew
+    Hannah
+    Christopher
+    Zoe
+    Joshua
+    Penelope
+    Luke
+    Claire
+    Christian
+    Skylar
+    Ryan
+    Audrey
+    Nathan
+    Arianna
+    Caleb
+    Layla
+    Dylan
+    Ellie
+    Nicholas
+    Piper
+    Adam
+    Maya
+    Julian
+    Stella
+    Eli
+    Violet
+    Max
+    Caroline
+    Isaac
+    Nova
+    Aaron
+    Makayla
+    Charles
+    Reagan
+    John
+    Kennedy
+    Timothy
+    Hailey)
+
+subjects = ["Math", "English", "Science", "History"]
+classes = [101, 201, 301, 401, 501, 601]
+```
+
+```elixir
+for_students =
+  for i <- 1..100_000 do
+    %Student{
+      name: Enum.random(names),
+      subject: Enum.random(subjects),
+      class: Enum.random(classes),
+      score: Enum.random(50..100)
+    }
+  end
+
+for {class, students_of_class} <- for_students |> Enum.group_by(& &1.class),
+    {subject, students_of_subject} <- students_of_class |> Enum.group_by(& &1.subject) do
+  %{
+    class: class,
+    subject: subject,
+    # get the mean score for all students in a class
+    average_score:
+      for student <- students_of_subject, reduce: 0 do
+        acc -> acc + student.score
+      end /
+        length(students_of_subject)
+  }
+end
+```
+
+```elixir
+enum_students =
+  Enum.map(1..100_000, fn _ ->
+    %Student{
+      name: Enum.random(names),
+      subject: Enum.random(subjects),
+      class: Enum.random(classes),
+      score: Enum.random(50..100)
+    }
+  end)
+
+result =
+  enum_students
+  |> Enum.group_by(& &1.class)
+  |> Enum.flat_map(fn {class, class_students} ->
+    class_students
+    |> Enum.group_by(& &1.subject)
+    |> Enum.map(fn {subject, subject_scores} ->
+      average_score =
+        Enum.reduce(subject_scores, 0, fn student, acc ->
+          acc + student.score
+        end) / length(subject_scores)
+
+      %{class: class, subject: subject, average_score: average_score}
+    end)
+  end)
+```
+
+```elixir
+{:ok, file} = File.read("/home/colivebook/books/non-enumerables_and_comprehensions.livemd")
+Kino.Download.new(fn -> file end, filename: "non-enumerables_and_comprehensions.livemd")
+```
